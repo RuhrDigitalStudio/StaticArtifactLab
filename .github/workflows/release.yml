@@ -1,0 +1,36 @@
+name: release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - run: dotnet restore StaticArtifactLab.slnx
+      - run: dotnet test StaticArtifactLab.Tests/StaticArtifactLab.Tests.csproj -c Release --no-restore
+      - name: Publish applications
+        shell: pwsh
+        run: |
+          dotnet publish StaticArtifactLab.Cli/StaticArtifactLab.Cli.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:DebugType=None -o artifacts/cli-win
+          dotnet publish StaticArtifactLab.Cli/StaticArtifactLab.Cli.csproj -c Release -r linux-x64 --self-contained true -p:PublishSingleFile=true -p:DebugType=None -o artifacts/cli-linux
+          dotnet publish StaticArtifactLab.Gui/StaticArtifactLab.Gui.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:DebugType=None -o artifacts/gui-win
+          Compress-Archive -Path artifacts/cli-win/* -DestinationPath artifacts/static-artifact-cli-win-x64.zip
+          Compress-Archive -Path artifacts/gui-win/* -DestinationPath artifacts/static-artifact-gui-win-x64.zip
+          tar -czf artifacts/static-artifact-cli-linux-x64.tar.gz -C artifacts/cli-linux .
+          Get-FileHash artifacts/*.zip,artifacts/*.tar.gz -Algorithm SHA256 |
+            ForEach-Object { "{0}  {1}" -f $_.Hash.ToLowerInvariant(), (Split-Path $_.Path -Leaf) } |
+            Set-Content artifacts/SHA256SUMS.txt -Encoding ascii
+      - name: Create GitHub release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "${{ github.ref_name }}" artifacts/*.zip artifacts/*.tar.gz artifacts/SHA256SUMS.txt --verify-tag --generate-notes --title "StaticArtifactLab ${{ github.ref_name }}"
