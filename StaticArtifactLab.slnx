@@ -1,5 +1,6 @@
 <Solution>
   <Project Path="StaticArtifactLab.Core/StaticArtifactLab.Core.csproj" />
+  <Project Path="StaticArtifactLab.Cli/StaticArtifactLab.Cli.csproj" />
+  <Project Path="StaticArtifactLab.Gui/StaticArtifactLab.Gui.csproj" />
   <Project Path="StaticArtifactLab.Tests/StaticArtifactLab.Tests.csproj" />
 </Solution>
-

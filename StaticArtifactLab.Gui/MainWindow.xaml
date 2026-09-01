@@ -1,0 +1,180 @@
+<Window x:Class="StaticArtifactLab.Gui.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:StaticArtifactLab.Gui"
+        Title="StaticArtifactLab — Evidence Workbench"
+        Width="1180" Height="800" MinWidth="980" MinHeight="650"
+        WindowStartupLocation="CenterScreen"
+        Background="#F3F5F8" Foreground="#152238">
+    <Window.Resources>
+        <SolidColorBrush x:Key="Ink" Color="#152238" />
+        <SolidColorBrush x:Key="Muted" Color="#647184" />
+        <SolidColorBrush x:Key="Blue" Color="#176BCE" />
+        <SolidColorBrush x:Key="Line" Color="#DCE2EA" />
+        <Style TargetType="Button">
+            <Setter Property="Padding" Value="14,8" />
+            <Setter Property="Margin" Value="0,0,8,0" />
+            <Setter Property="Background" Value="White" />
+            <Setter Property="Foreground" Value="{StaticResource Ink}" />
+            <Setter Property="BorderBrush" Value="{StaticResource Line}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Cursor" Value="Hand" />
+        </Style>
+        <Style x:Key="PrimaryButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Background" Value="{StaticResource Blue}" />
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="BorderBrush" Value="{StaticResource Blue}" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+        <Style TargetType="DataGrid">
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="GridLinesVisibility" Value="Horizontal" />
+            <Setter Property="HorizontalGridLinesBrush" Value="#E7EBF1" />
+            <Setter Property="HeadersVisibility" Value="Column" />
+            <Setter Property="AutoGenerateColumns" Value="False" />
+            <Setter Property="IsReadOnly" Value="True" />
+            <Setter Property="CanUserAddRows" Value="False" />
+            <Setter Property="RowHeaderWidth" Value="0" />
+        </Style>
+        <Style x:Key="Card" TargetType="Border">
+            <Setter Property="Background" Value="White" />
+            <Setter Property="BorderBrush" Value="{StaticResource Line}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="14" />
+        </Style>
+        <HierarchicalDataTemplate DataType="{x:Type local:ArtifactNode}" ItemsSource="{Binding Children}">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="{Binding Kind}" FontSize="11" Foreground="{StaticResource Blue}" Margin="0,0,7,0" VerticalAlignment="Center" />
+                <TextBlock Text="{Binding Name}" ToolTip="{Binding LogicalPath}" />
+            </StackPanel>
+        </HierarchicalDataTemplate>
+    </Window.Resources>
+
+    <Grid Margin="22,18,22,14">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <Grid Grid.Row="0" Margin="0,0,0,16">
+            <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+            <StackPanel>
+                <TextBlock Text="STATIC ARTIFACT LAB" Foreground="{StaticResource Blue}" FontWeight="Bold" FontSize="12" />
+                <TextBlock Text="Evidence Workbench" FontSize="27" FontWeight="SemiBold" Margin="0,2,0,3" />
+                <TextBlock Text="Inputs are never executed · local, read-only analysis · evidence over verdict" Foreground="{StaticResource Muted}" />
+            </StackPanel>
+            <Border Grid.Column="1" Background="#E9F2FD" CornerRadius="14" Padding="12,6" VerticalAlignment="Top">
+                <TextBlock Text="CASE V2 · RC 1" Foreground="{StaticResource Blue}" FontWeight="SemiBold" FontSize="11" />
+            </Border>
+        </Grid>
+
+        <Border Grid.Row="1" Style="{StaticResource Card}" Margin="0,0,0,12">
+            <StackPanel>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBox x:Name="InputPathBox" Height="34" Padding="9,6" VerticalContentAlignment="Center" BorderBrush="{StaticResource Line}" ToolTip="File or directory to prove" />
+                    <Button x:Name="BrowseFileButton" Grid.Column="1" Content="File…" Margin="9,0,8,0" Click="BrowseFileButton_Click" />
+                    <Button x:Name="BrowseFolderButton" Grid.Column="2" Content="Folder…" Click="BrowseFolderButton_Click" />
+                    <Button x:Name="ProveButton" Grid.Column="3" Content="Prove input" Style="{StaticResource PrimaryButton}" Click="ProveButton_Click" />
+                    <Button x:Name="CancelButton" Grid.Column="4" Content="Cancel" IsEnabled="False" Margin="0" Click="CancelButton_Click" />
+                </Grid>
+                <WrapPanel Margin="0,11,0,0">
+                    <Button x:Name="OpenCaseButton" Content="Open case…" Click="OpenCaseButton_Click" />
+                    <Button x:Name="VerifyButton" Content="Verify evidence" IsEnabled="False" Click="VerifyButton_Click" />
+                    <Button x:Name="ReplayButton" Content="Replay worker" IsEnabled="False" Click="ReplayButton_Click" />
+                    <Separator Width="12" Opacity="0" />
+                    <Button x:Name="ExportCaseButton" Content="Case JSON…" IsEnabled="False" Click="ExportCaseButton_Click" />
+                    <Button x:Name="ExportHtmlButton" Content="HTML report…" IsEnabled="False" Click="ExportHtmlButton_Click" />
+                    <Button x:Name="ExportSarifButton" Content="SARIF 2.1…" IsEnabled="False" Click="ExportSarifButton_Click" />
+                </WrapPanel>
+            </StackPanel>
+        </Border>
+
+        <Grid Grid.Row="2" Margin="0,0,0,12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition /><ColumnDefinition /><ColumnDefinition /><ColumnDefinition />
+            </Grid.ColumnDefinitions>
+            <Border Grid.Column="0" Style="{StaticResource Card}" Margin="0,0,8,0">
+                <StackPanel><TextBlock Text="CASE STATUS" Foreground="{StaticResource Muted}" FontSize="10" FontWeight="Bold" /><TextBlock x:Name="CaseStatusText" Text="No case" FontSize="19" FontWeight="SemiBold" Margin="0,4,0,0" /></StackPanel>
+            </Border>
+            <Border Grid.Column="1" Style="{StaticResource Card}" Margin="0,0,8,0">
+                <StackPanel><TextBlock Text="ARTIFACTS" Foreground="{StaticResource Muted}" FontSize="10" FontWeight="Bold" /><TextBlock x:Name="ArtifactCountText" Text="0" FontSize="19" FontWeight="SemiBold" Margin="0,4,0,0" /></StackPanel>
+            </Border>
+            <Border Grid.Column="2" Style="{StaticResource Card}" Margin="0,0,8,0">
+                <StackPanel><TextBlock Text="FINDINGS" Foreground="{StaticResource Muted}" FontSize="10" FontWeight="Bold" /><TextBlock x:Name="FindingCountText" Text="0" FontSize="19" FontWeight="SemiBold" Margin="0,4,0,0" /></StackPanel>
+            </Border>
+            <Border Grid.Column="3" Style="{StaticResource Card}">
+                <StackPanel><TextBlock Text="COVERAGE EVENTS" Foreground="{StaticResource Muted}" FontSize="10" FontWeight="Bold" /><TextBlock x:Name="CoverageCountText" Text="0" FontSize="19" FontWeight="SemiBold" Margin="0,4,0,0" /></StackPanel>
+            </Border>
+        </Grid>
+
+        <Grid Grid.Row="3">
+            <Grid.ColumnDefinitions><ColumnDefinition Width="330" /><ColumnDefinition Width="12" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+            <Border Grid.Column="0" Style="{StaticResource Card}" Padding="0">
+                <Grid>
+                    <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition /></Grid.RowDefinitions>
+                    <TextBlock Text="Artifact tree" FontSize="15" FontWeight="SemiBold" Margin="14,12,14,9" />
+                    <TreeView x:Name="ArtifactTree" Grid.Row="1" BorderThickness="0" Margin="6,0,6,8" SelectedItemChanged="ArtifactTree_SelectedItemChanged" />
+                </Grid>
+            </Border>
+            <Border Grid.Column="2" Style="{StaticResource Card}" Padding="0">
+                <TabControl BorderThickness="0" Background="Transparent">
+                    <TabItem Header="Evidence">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <StackPanel x:Name="EvidencePanel" Margin="18">
+                                <TextBlock Text="Select an artifact to inspect its exact Selector and digest." Foreground="{StaticResource Muted}" Margin="0,0,0,14" />
+                                <TextBlock Text="LOGICAL PATH" Foreground="{StaticResource Muted}" FontSize="10" FontWeight="Bold" />
+                                <TextBlock x:Name="EvidencePathText" Text="—" TextWrapping="Wrap" Margin="0,3,0,13" />
+                                <TextBlock Text="SHA-256" Foreground="{StaticResource Muted}" FontSize="10" FontWeight="Bold" />
+                                <TextBox x:Name="EvidenceDigestText" Text="—" IsReadOnly="True" BorderThickness="0" Background="Transparent" FontFamily="Consolas" Padding="0" Margin="0,3,0,13" />
+                                <UniformGrid Columns="2">
+                                    <StackPanel Margin="0,0,12,12"><TextBlock Text="KIND" Foreground="{StaticResource Muted}" FontSize="10" FontWeight="Bold" /><TextBlock x:Name="EvidenceKindText" Text="—" Margin="0,3,0,0" /></StackPanel>
+                                    <StackPanel Margin="0,0,12,12"><TextBlock Text="BYTES / ENTROPY" Foreground="{StaticResource Muted}" FontSize="10" FontWeight="Bold" /><TextBlock x:Name="EvidenceSizeText" Text="—" Margin="0,3,0,0" /></StackPanel>
+                                    <StackPanel Margin="0,0,12,12"><TextBlock Text="SELECTOR" Foreground="{StaticResource Muted}" FontSize="10" FontWeight="Bold" /><TextBlock x:Name="EvidenceSelectorText" Text="—" TextWrapping="Wrap" Margin="0,3,0,0" /></StackPanel>
+                                    <StackPanel Margin="0,0,12,12"><TextBlock Text="PARENT ARTIFACT" Foreground="{StaticResource Muted}" FontSize="10" FontWeight="Bold" /><TextBlock x:Name="EvidenceParentText" Text="—" FontFamily="Consolas" Margin="0,3,0,0" /></StackPanel>
+                                </UniformGrid>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </TabItem>
+                    <TabItem Header="Findings">
+                        <DataGrid x:Name="FindingsGrid">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Rule" Binding="{Binding RuleId}" Width="75" />
+                                <DataGridTextColumn Header="Level" Binding="{Binding Level}" Width="85" />
+                                <DataGridTextColumn Header="Observation" Binding="{Binding Message}" Width="*" />
+                                <DataGridTextColumn Header="Artifact" Binding="{Binding ArtifactId}" Width="170" />
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </TabItem>
+                    <TabItem Header="Coverage">
+                        <DataGrid x:Name="CoverageGrid">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="80" />
+                                <DataGridTextColumn Header="Operation" Binding="{Binding Operation}" Width="125" />
+                                <DataGridTextColumn Header="Reason" Binding="{Binding Reason}" Width="135" />
+                                <DataGridTextColumn Header="Path" Binding="{Binding LogicalPath}" Width="180" />
+                                <DataGridTextColumn Header="Detail" Binding="{Binding Detail}" Width="*" />
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </TabItem>
+                </TabControl>
+            </Border>
+        </Grid>
+
+        <Grid Grid.Row="4" Margin="2,10,2,0">
+            <TextBlock x:Name="StatusText" Text="Ready. Open a case or choose an input." Foreground="{StaticResource Muted}" />
+            <ProgressBar x:Name="BusyIndicator" Height="3" IsIndeterminate="True" Visibility="Collapsed" VerticalAlignment="Bottom" Margin="0,7,0,-7" />
+        </Grid>
+    </Grid>
+</Window>
+

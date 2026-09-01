@@ -16,6 +16,10 @@
     <Using Include="Xunit" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\StaticArtifactLab.Cli\StaticArtifactLab.Cli.csproj" />
     <ProjectReference Include="..\StaticArtifactLab.Core\StaticArtifactLab.Core.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\StaticArtifactLab.Gui\MainWindow.xaml" Link="Gui\MainWindow.xaml" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>
