@@ -35,7 +35,15 @@ public sealed class ArtifactAnalyzer
             foreach (var file in EnumerateFilesSafely(fullPath, state))
             {
                 var relative = Path.GetRelativePath(fullPath, file).Replace('\\', '/');
-                await AnalyzeRootAsync(file, relative, rootIndex++, state).ConfigureAwait(false);
+                if (rootIndex >= document.Limits.MaxArtifacts || document.Artifacts.Count >= document.Limits.MaxArtifacts)
+                {
+                    state.Coverage(null, relative, "enumerate-roots", CoverageStatus.Skipped, CoverageReason.ArtifactLimit,
+                        "Directory traversal stopped at the artifact budget.");
+                    break;
+                }
+
+                await AnalyzeRootAsync(file, relative, rootIndex, state).ConfigureAwait(false);
+                rootIndex++;
             }
         }
 
@@ -50,16 +58,30 @@ public sealed class ArtifactAnalyzer
     {
         var pending = new Stack<string>();
         pending.Push(root);
+        state.VisitedFilesystemNodes = 1;
         while (pending.Count > 0)
         {
             state.CancellationToken.ThrowIfCancellationRequested();
             var directory = pending.Pop();
-            string[] files;
-            string[] directories;
+            var files = new List<string>();
+            var directories = new List<string>();
+            var limitReached = false;
             try
             {
-                files = Directory.GetFiles(directory);
-                directories = Directory.GetDirectories(directory);
+                foreach (var entry in Directory.EnumerateFileSystemEntries(directory))
+                {
+                    if (state.VisitedFilesystemNodes >= state.Document.Limits.MaxFilesystemNodes)
+                    {
+                        limitReached = true;
+                        break;
+                    }
+
+                    state.VisitedFilesystemNodes++;
+                    if ((File.GetAttributes(entry) & FileAttributes.Directory) != 0)
+                        directories.Add(entry);
+                    else
+                        files.Add(entry);
+                }
             }
             catch (UnauthorizedAccessException ex)
             {
@@ -81,6 +103,13 @@ public sealed class ArtifactAnalyzer
                 }
 
                 yield return file;
+            }
+
+            if (limitReached)
+            {
+                state.Coverage(null, Path.GetRelativePath(root, directory), "enumerate", CoverageStatus.Skipped, CoverageReason.FilesystemNodeLimit,
+                    $"Filesystem traversal stopped after {state.Document.Limits.MaxFilesystemNodes} nodes.");
+                yield break;
             }
 
             foreach (var child in directories.OrderDescending(StringComparer.Ordinal))
@@ -129,6 +158,11 @@ public sealed class ArtifactAnalyzer
             state.Coverage(null, logicalPath, "read-root", CoverageStatus.Rejected, CoverageReason.UnreadableInput, ex.Message);
             return;
         }
+        catch (InvalidDataException ex)
+        {
+            state.Coverage(null, logicalPath, "read-root", CoverageStatus.Rejected, CoverageReason.RootTooLarge, ex.Message);
+            return;
+        }
 
         var selector = EvidenceSelector.Root(logicalPath, rootIndex, path);
         await AnalyzeBytesAsync(bytes, Path.GetFileName(path), logicalPath, null, 0, selector, state).ConfigureAwait(false);
@@ -170,7 +204,6 @@ public sealed class ArtifactAnalyzer
         };
         artifact = artifact with { Id = ArtifactIdentity.Create(artifact.ParentId, selector, artifact.Length, artifact.Sha256) };
         state.Document.Artifacts.Add(artifact);
-        state.BytesByArtifact[artifact.Id] = bytes;
         state.Coverage(artifact.Id, logicalPath, "identify", CoverageStatus.Analyzed, CoverageReason.None, $"Detected {artifact.Kind} from bytes.");
 
         ApplyRules(artifact, bytes, state);
@@ -261,9 +294,12 @@ public sealed class ArtifactAnalyzer
                     await using var entryStream = entry.Open();
                     childBytes = await ReadBoundedAsync(entryStream, state.Document.Limits.MaxArtifactBytes, state.CancellationToken).ConfigureAwait(false);
                 }
-                catch (InvalidDataException ex)
+                catch (Exception ex) when (ex is InvalidDataException or IOException or NotSupportedException)
                 {
-                    state.Coverage(parent.Id, childPath, "read-entry", CoverageStatus.Rejected, CoverageReason.MalformedContainer, ex.Message);
+                    var reason = ex.Message.Contains("exceeds", StringComparison.OrdinalIgnoreCase)
+                        ? CoverageReason.ArtifactTooLarge
+                        : CoverageReason.MalformedContainer;
+                    state.Coverage(parent.Id, childPath, "read-entry", CoverageStatus.Rejected, reason, ex.Message);
                     continue;
                 }
 
@@ -423,7 +459,7 @@ public sealed class ArtifactAnalyzer
     private static void ValidateLimits(AnalysisLimits limits)
     {
         if (limits.MaxRootBytes < 1 || limits.MaxArtifactBytes < 1 || limits.MaxTotalExpandedBytes < 1 ||
-            limits.MaxArtifacts < 1 || limits.MaxEntriesPerArchive < 1 || limits.MaxDepth < 0 ||
+            limits.MaxArtifacts < 1 || limits.MaxFilesystemNodes < 1 || limits.MaxEntriesPerArchive < 1 || limits.MaxDepth < 0 ||
             limits.MaxExpansionRatio <= 0 || limits.MaxFindings < 1)
             throw new ArgumentOutOfRangeException(nameof(limits), "All analysis limits must be positive; depth may be zero.");
     }
@@ -432,8 +468,8 @@ public sealed class ArtifactAnalyzer
     {
         public CaseDocument Document { get; } = document;
         public CancellationToken CancellationToken { get; } = cancellationToken;
-        public Dictionary<string, byte[]> BytesByArtifact { get; } = new(StringComparer.Ordinal);
         public long TotalBytes { get; set; }
+        public int VisitedFilesystemNodes { get; set; }
 
         public bool CanAcceptBytes(long length) => length >= 0 && TotalBytes <= Document.Limits.MaxTotalExpandedBytes - length;
 

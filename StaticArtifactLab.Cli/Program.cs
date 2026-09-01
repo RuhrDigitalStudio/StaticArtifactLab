@@ -52,7 +52,7 @@ public static class CliApplication
 
     private static async Task<int> ProveAsync(string[] args, TextWriter output, CancellationToken cancellationToken)
     {
-        var parsed = ParsedArguments.Parse(args, ["case", "html", "sarif", "max-root-mib", "max-artifact-mib", "max-total-mib", "max-artifacts", "max-entries", "max-depth", "max-ratio"]);
+        var parsed = ParsedArguments.Parse(args, ["case", "html", "sarif", "max-root-mib", "max-artifact-mib", "max-total-mib", "max-artifacts", "max-fs-nodes", "max-entries", "max-depth", "max-ratio"]);
         if (parsed.Positionals.Count != 1)
             throw new ArgumentException("prove requires exactly one input file or directory.");
 
@@ -124,6 +124,7 @@ public static class CliApplication
         MaxArtifactBytes = Mebibytes(args, "max-artifact-mib", AnalysisLimits.Default.MaxArtifactBytes),
         MaxTotalExpandedBytes = Mebibytes(args, "max-total-mib", AnalysisLimits.Default.MaxTotalExpandedBytes),
         MaxArtifacts = PositiveInt(args, "max-artifacts", AnalysisLimits.Default.MaxArtifacts),
+        MaxFilesystemNodes = PositiveInt(args, "max-fs-nodes", AnalysisLimits.Default.MaxFilesystemNodes),
         MaxEntriesPerArchive = PositiveInt(args, "max-entries", AnalysisLimits.Default.MaxEntriesPerArchive),
         MaxDepth = NonNegativeInt(args, "max-depth", AnalysisLimits.Default.MaxDepth),
         MaxExpansionRatio = PositiveDouble(args, "max-ratio", AnalysisLimits.Default.MaxExpansionRatio),
@@ -193,6 +194,7 @@ public static class CliApplication
           --max-artifact-mib <n>   Maximum expanded child size (default 100)
           --max-total-mib <n>      Total expanded-byte budget (default 512)
           --max-artifacts <n>      Accepted artifact budget (default 5000)
+          --max-fs-nodes <n>       Filesystem entries considered (default 20000)
           --max-entries <n>        Entries considered per ZIP (default 1000)
           --max-depth <n>          Nested container depth (default 8)
           --max-ratio <n>          Maximum expansion ratio (default 200)

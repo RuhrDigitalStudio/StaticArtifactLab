@@ -27,6 +27,8 @@ public sealed class CaseVerifier
 
             if (artifact.ParentId is not null)
             {
+                if (artifact.Selector.Kind != "zip-entry" || artifact.Selector.EntryIndex is null or < 0 || artifact.Selector.EntryName is null)
+                    errors.Add(new("invalid-selector", "A nested artifact requires a complete ZIP-entry selector.", artifact.Id));
                 if (!byId.TryGetValue(artifact.ParentId, out var parent))
                     errors.Add(new("missing-parent", "The parent artifact is absent or appears after its child.", artifact.Id));
                 else
@@ -40,6 +42,10 @@ public sealed class CaseVerifier
             else if (artifact.Depth != 0)
             {
                 errors.Add(new("invalid-root-depth", "A root artifact must have depth zero.", artifact.Id));
+            }
+            else if (artifact.Selector.Kind != "root" || artifact.Selector.RootIndex is null or < 0 || artifact.Selector.RootName is null)
+            {
+                errors.Add(new("invalid-selector", "A root artifact requires a complete root selector.", artifact.Id));
             }
         }
 
@@ -64,7 +70,15 @@ public sealed class CaseVerifier
             }
             else if (artifact.ParentId is not null && artifact.Selector.Kind == "zip-entry" && bytesById.TryGetValue(artifact.ParentId, out var parentBytes))
             {
-                bytes = await ReadZipEntryAsync(parentBytes, artifact.Selector, document.Limits.MaxArtifactBytes, cancellationToken).ConfigureAwait(false);
+                var selected = await ReadZipEntryAsync(parentBytes, artifact.Selector, document.Limits.MaxArtifactBytes, cancellationToken).ConfigureAwait(false);
+                if (!selected.Resolved)
+                {
+                    errors.Add(new("selector-resolution-failed", "The child selector cannot be resolved against the available parent bytes.", artifact.Id));
+                    unverified++;
+                    continue;
+                }
+
+                bytes = selected.Bytes;
             }
 
             if (bytes is null)
@@ -87,29 +101,32 @@ public sealed class CaseVerifier
         return new VerificationResult(errors.Count == 0, verified, unverified, errors);
     }
 
-    private static async Task<byte[]?> ReadZipEntryAsync(byte[] parentBytes, EvidenceSelector selector, long limit, CancellationToken cancellationToken)
+    private static async Task<SelectorReadResult> ReadZipEntryAsync(byte[] parentBytes, EvidenceSelector selector, long limit, CancellationToken cancellationToken)
     {
         if (selector.EntryIndex is null || selector.EntryName is null)
-            return null;
+            return new(false, null);
         try
         {
             using var input = new MemoryStream(parentBytes, writable: false);
             using var archive = new ZipArchive(input, ZipArchiveMode.Read);
             if (selector.EntryIndex < 0 || selector.EntryIndex >= archive.Entries.Count)
-                return null;
+                return new(false, null);
             var entry = archive.Entries[selector.EntryIndex.Value];
             if (!string.Equals(entry.FullName.Replace('\\', '/'), selector.EntryName, StringComparison.Ordinal) || entry.Length > limit)
-                return null;
+                return new(false, null);
             await using var stream = entry.Open();
-            return await ArtifactAnalyzer.ReadBoundedAsync(stream, limit, cancellationToken).ConfigureAwait(false);
+            var bytes = await ArtifactAnalyzer.ReadBoundedAsync(stream, limit, cancellationToken).ConfigureAwait(false);
+            return new(true, bytes);
         }
         catch (InvalidDataException)
         {
-            return null;
+            return new(false, null);
         }
     }
 
     private static bool IsSha256(string value) => value.Length == 64 && value.All(c => c is >= '0' and <= '9' or >= 'a' and <= 'f');
+
+    private sealed record SelectorReadResult(bool Resolved, byte[]? Bytes);
 }
 
 public sealed class CaseReplayer

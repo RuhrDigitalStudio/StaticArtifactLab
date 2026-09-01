@@ -102,6 +102,26 @@ public sealed class ReportsVerificationReplayTests
     }
 
     [Fact]
+    public async Task Verify_RejectsChildSelectorThatCannotBeResolved()
+    {
+        using var temp = TestData.Temp();
+        var path = temp.Write("bundle.zip", TestData.Zip(("one.txt", Encoding.UTF8.GetBytes("one"))));
+        var document = await ArtifactAnalyzer.ProveAsync(path);
+        var child = document.Artifacts[1];
+        var changedSelector = child.Selector with { EntryIndex = 99 };
+        document.Artifacts[1] = child with
+        {
+            Selector = changedSelector,
+            Id = ArtifactIdentity.Create(child.ParentId, changedSelector, child.Length, child.Sha256),
+        };
+
+        var result = await CaseVerifier.VerifyAsync(document);
+
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, x => x.Code == "selector-resolution-failed");
+    }
+
+    [Fact]
     public async Task Replay_MatchesStableInputAndReportsChangedEvidence()
     {
         using var temp = TestData.Temp();

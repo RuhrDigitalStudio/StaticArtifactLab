@@ -52,6 +52,7 @@ Defaults are deliberately conservative and always recorded in the case:
 - 100 MiB maximum expanded artifact size
 - 512 MiB total expanded bytes
 - 5,000 accepted artifacts
+- 20,000 filesystem nodes considered
 - 1,000 entries per archive
 - 8 container levels
 - 200:1 maximum expansion ratio
@@ -111,4 +112,3 @@ uses no remote assets or active script.
 The project is not an antivirus, sandbox, detonation service, disassembler,
 decompiler, signature authority, or forensic proof of origin. It does not
 claim that a clean report means a file is safe.
-

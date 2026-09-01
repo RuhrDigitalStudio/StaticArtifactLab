@@ -49,6 +49,7 @@ public enum CoverageReason
     ArtifactTooLarge,
     TotalByteLimit,
     ArtifactLimit,
+    FilesystemNodeLimit,
     FindingLimit,
     EntryLimit,
     DepthLimit,
@@ -80,6 +81,7 @@ public sealed record AnalysisLimits
     public long MaxArtifactBytes { get; init; } = 100L * 1024 * 1024;
     public long MaxTotalExpandedBytes { get; init; } = 512L * 1024 * 1024;
     public int MaxArtifacts { get; init; } = 5_000;
+    public int MaxFilesystemNodes { get; init; } = 20_000;
     public int MaxEntriesPerArchive { get; init; } = 1_000;
     public int MaxDepth { get; init; } = 8;
     public double MaxExpansionRatio { get; init; } = 200;

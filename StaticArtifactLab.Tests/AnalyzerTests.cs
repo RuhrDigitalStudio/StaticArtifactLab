@@ -50,6 +50,37 @@ public sealed class AnalyzerTests
     }
 
     [Fact]
+    public async Task DirectoryTraversal_StopsAtArtifactBudget()
+    {
+        using var temp = TestData.Temp();
+        temp.Write("a.txt", Encoding.UTF8.GetBytes("alpha"));
+        temp.Write("b.txt", Encoding.UTF8.GetBytes("bravo"));
+        temp.Write("c.txt", Encoding.UTF8.GetBytes("charlie"));
+        var options = new AnalysisOptions { Limits = AnalysisLimits.Default with { MaxArtifacts = 2 } };
+
+        var result = await ArtifactAnalyzer.ProveAsync(temp.Path, options);
+
+        Assert.Equal(2, result.Artifacts.Count);
+        Assert.Contains(result.Coverage, x => x.Reason == CoverageReason.ArtifactLimit);
+        Assert.Equal(CaseStatus.Partial, result.Status);
+    }
+
+    [Fact]
+    public async Task DirectoryTraversal_StopsAtFilesystemNodeBudget()
+    {
+        using var temp = TestData.Temp();
+        temp.Write("a.txt", Encoding.UTF8.GetBytes("alpha"));
+        temp.Write("b.txt", Encoding.UTF8.GetBytes("bravo"));
+        var options = new AnalysisOptions { Limits = AnalysisLimits.Default with { MaxFilesystemNodes = 2 } };
+
+        var result = await ArtifactAnalyzer.ProveAsync(temp.Path, options);
+
+        Assert.Single(result.Artifacts);
+        Assert.Contains(result.Coverage, x => x.Reason == CoverageReason.FilesystemNodeLimit);
+        Assert.Equal(CaseStatus.Partial, result.Status);
+    }
+
+    [Fact]
     public async Task ZipChild_IsBoundToParentAndSelector()
     {
         using var temp = TestData.Temp();
