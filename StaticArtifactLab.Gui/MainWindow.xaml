@@ -27,6 +27,9 @@
             <Setter Property="FontWeight" Value="SemiBold" />
         </Style>
         <Style TargetType="DataGrid">
+            <Setter Property="Background" Value="White" />
+            <Setter Property="RowBackground" Value="White" />
+            <Setter Property="AlternatingRowBackground" Value="#FAFBFC" />
             <Setter Property="BorderThickness" Value="0" />
             <Setter Property="GridLinesVisibility" Value="Horizontal" />
             <Setter Property="HorizontalGridLinesBrush" Value="#E7EBF1" />
@@ -124,13 +127,13 @@
                 <Grid>
                     <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition /></Grid.RowDefinitions>
                     <TextBlock Text="Artifact tree" FontSize="15" FontWeight="SemiBold" Margin="14,12,14,9" />
-                    <TreeView x:Name="ArtifactTree" Grid.Row="1" BorderThickness="0" Margin="6,0,6,8" SelectedItemChanged="ArtifactTree_SelectedItemChanged" />
+                    <TreeView x:Name="ArtifactTree" Grid.Row="1" BorderThickness="0" Background="White" Margin="6,0,6,8" SelectedItemChanged="ArtifactTree_SelectedItemChanged" />
                 </Grid>
             </Border>
             <Border Grid.Column="2" Style="{StaticResource Card}" Padding="0">
-                <TabControl BorderThickness="0" Background="Transparent">
+                <TabControl BorderThickness="0" Background="White">
                     <TabItem Header="Evidence">
-                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <ScrollViewer Background="White" VerticalScrollBarVisibility="Auto">
                             <StackPanel x:Name="EvidencePanel" Margin="18">
                                 <TextBlock Text="Select an artifact to inspect its exact Selector and digest." Foreground="{StaticResource Muted}" Margin="0,0,0,14" />
                                 <TextBlock Text="LOGICAL PATH" Foreground="{StaticResource Muted}" FontSize="10" FontWeight="Bold" />
@@ -177,4 +180,3 @@
         </Grid>
     </Grid>
 </Window>
-

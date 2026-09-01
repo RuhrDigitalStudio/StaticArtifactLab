@@ -252,4 +252,7 @@ public sealed class ArtifactNode(ArtifactRecord artifact)
     public string LogicalPath => Artifact.LogicalPath;
     public string Kind => Artifact.Kind.ToString();
     public ObservableCollection<ArtifactNode> Children { get; } = [];
+
+    // TreeView automation peers use this text for screen readers and UI tests.
+    public override string ToString() => $"{Kind} · {Name}";
 }
