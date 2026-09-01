@@ -6,7 +6,7 @@ must be replaced with a fresh run after any code change.
 ## Required checks
 
 - [x] Release build succeeds with zero warnings and errors.
-- [x] All 43 tests pass in Release configuration.
+- [x] All 51 tests pass in Release configuration.
 - [x] `dotnet format --verify-no-changes` passes.
 - [x] `git diff --check` passes.
 - [x] Case JSON, HTML, and SARIF smoke outputs parse successfully.
@@ -21,10 +21,10 @@ must be replaced with a fresh run after any code change.
 
 ## Verification record
 
-Recorded on 2026-09-01 from commit `155a4e0` plus the staged release files:
+Recorded on 2026-09-01 from commit `f1488d4` plus the final hardening changes:
 
 - `dotnet build StaticArtifactLab.slnx -c Release`: zero warnings, zero errors;
-- 43 passed tests, zero failed or skipped;
+- 51 passed tests, zero failed or skipped;
 - format verification and whitespace checks passed;
 - self-contained publishes completed for CLI `win-x64` and `linux-x64`, and
   GUI `win-x64`;
@@ -32,7 +32,10 @@ Recorded on 2026-09-01 from commit `155a4e0` plus the staged release files:
   and 4 coverage records with complete status;
 - case schema was `static-artifact-case/v2`, SARIF version was `2.1.0`, HTML
   contained the restrictive CSP, and the input SHA-256 was unchanged;
-- published `verify` checked 3 of 3 artifacts with no unavailable evidence;
+- published structure-only `verify` read 0 source artifacts and reported all 3
+  as unavailable, as designed;
+- published `verify --with-sources` checked 3 of 3 artifacts with no unavailable
+  evidence;
 - published `replay` reported zero added, removed, or changed paths;
 - the published GUI was responsive and exposed 71 automation elements after
   its lazy tabs were materialized, including Evidence, Findings, and Coverage;

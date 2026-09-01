@@ -52,6 +52,9 @@ A root selector has `kind: "root"`, the deterministic `rootIndex`, a
 `rootName`, and the `sourcePath` used to read it. Directory inputs assign
 indices during deterministic ordinal directory traversal.
 
+Case loading never reads `sourcePath`. Source verification is an explicit
+operation, stays within `inputPath`, and rejects UNC paths and reparse points.
+
 ### ZIP entry
 
 A ZIP selector has `kind: "zip-entry"`, `entryIndex`, normalized `entryName`,

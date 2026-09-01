@@ -76,12 +76,12 @@ public static class CliApplication
 
     private static async Task<int> VerifyAsync(string[] args, TextWriter output, CancellationToken cancellationToken)
     {
-        var parsed = ParsedArguments.Parse(args, []);
+        var parsed = ParsedArguments.Parse(args, [], ["with-sources"]);
         if (parsed.Positionals.Count != 1)
             throw new ArgumentException("verify requires exactly one case JSON file.");
 
         var document = await CaseJson.ReadAsync(parsed.Positionals[0], cancellationToken).ConfigureAwait(false);
-        var result = await CaseVerifier.VerifyAsync(document, cancellationToken).ConfigureAwait(false);
+        var result = await CaseVerifier.VerifyAsync(document, new VerificationOptions { VerifySourceBytes = parsed.Has("with-sources") }, cancellationToken).ConfigureAwait(false);
         await output.WriteLineAsync($"Valid: {result.IsValid.ToString().ToLowerInvariant()}").ConfigureAwait(false);
         await output.WriteLineAsync($"Verified artifacts: {result.VerifiedArtifacts}").ConfigureAwait(false);
         await output.WriteLineAsync($"Unverified artifacts: {result.UnverifiedArtifacts}").ConfigureAwait(false);
@@ -186,7 +186,7 @@ public static class CliApplication
 
         Usage:
           static-artifact prove <input> [--case case.json] [--html report.html] [--sarif report.sarif]
-          static-artifact verify <case.json>
+          static-artifact verify <case.json> [--with-sources]
           static-artifact replay <case.json> [--out replayed.json] [--html report.html] [--sarif report.sarif]
 
         Prove limits:
@@ -201,6 +201,9 @@ public static class CliApplication
 
         Exit codes: 0 success, 1 usage/I/O, 2 partial coverage,
                     3 invalid evidence, 4 replay difference.
+
+        verify checks case structure by default. --with-sources explicitly allows
+        reads beneath the recorded local input path; UNC paths remain blocked.
 
         Inputs are never executed. Reports can contain sensitive paths and strings.
         """;
@@ -218,8 +221,11 @@ public static class CliApplication
 
         public string? Get(string key) => Options.GetValueOrDefault(key);
 
-        public static ParsedArguments Parse(string[] args, IReadOnlyCollection<string> allowedOptions)
+        public bool Has(string key) => Options.ContainsKey(key);
+
+        public static ParsedArguments Parse(string[] args, IReadOnlyCollection<string> allowedOptions, IReadOnlyCollection<string>? allowedFlags = null)
         {
+            allowedFlags ??= [];
             var positionals = new List<string>();
             var options = new Dictionary<string, string>(StringComparer.Ordinal);
             for (var index = 0; index < args.Length; index++)
@@ -232,6 +238,12 @@ public static class CliApplication
                 }
 
                 var key = current[2..];
+                if (allowedFlags.Contains(key, StringComparer.Ordinal))
+                {
+                    if (!options.TryAdd(key, "true"))
+                        throw new ArgumentException($"Flag '--{key}' was supplied more than once.");
+                    continue;
+                }
                 if (!allowedOptions.Contains(key, StringComparer.Ordinal))
                     throw new ArgumentException($"Unknown option '--{key}'.");
                 if (index + 1 >= args.Length || args[index + 1].StartsWith("--", StringComparison.Ordinal))

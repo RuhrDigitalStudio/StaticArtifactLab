@@ -93,6 +93,55 @@ public sealed record AnalysisOptions
     public AnalysisLimits Limits { get; init; } = AnalysisLimits.Default;
 }
 
+public sealed record VerificationOptions
+{
+    public bool VerifySourceBytes { get; init; }
+}
+
+public static class AnalysisLimitPolicy
+{
+    public const long MaxSingleArtifactBytes = 1024L * 1024 * 1024;
+    public const long MaxTotalBytes = 4L * 1024 * 1024 * 1024;
+    public const int MaxArtifactCount = 100_000;
+    public const int MaxFilesystemNodeCount = 1_000_000;
+    public const int MaxArchiveEntryCount = 100_000;
+    public const int MaxContainerDepth = 32;
+    public const double MaxAllowedExpansionRatio = 10_000;
+    public const int MaxFindingCount = 100_000;
+
+    public static bool IsValid(AnalysisLimits limits) =>
+        limits.MaxRootBytes is > 0 and <= MaxSingleArtifactBytes &&
+        limits.MaxArtifactBytes is > 0 and <= MaxSingleArtifactBytes &&
+        limits.MaxTotalExpandedBytes is > 0 and <= MaxTotalBytes &&
+        limits.MaxArtifacts is > 0 and <= MaxArtifactCount &&
+        limits.MaxFilesystemNodes is > 0 and <= MaxFilesystemNodeCount &&
+        limits.MaxEntriesPerArchive is > 0 and <= MaxArchiveEntryCount &&
+        limits.MaxDepth is >= 0 and <= MaxContainerDepth &&
+        double.IsFinite(limits.MaxExpansionRatio) && limits.MaxExpansionRatio is > 0 and <= MaxAllowedExpansionRatio &&
+        limits.MaxFindings is > 0 and <= MaxFindingCount;
+}
+
+public static class PathSafety
+{
+    public static bool IsNetworkPath(string path) =>
+        path.StartsWith("\\\\", StringComparison.Ordinal) || path.StartsWith("//", StringComparison.Ordinal);
+
+    public static bool IsWithinRecordedInput(string inputPath, string sourcePath)
+    {
+        var fullInput = Path.GetFullPath(inputPath);
+        var input = fullInput.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        var source = Path.GetFullPath(sourcePath);
+        var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+        var root = Path.GetPathRoot(fullInput)?.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        if (!string.IsNullOrEmpty(root) && string.Equals(input, root, comparison))
+            return false;
+        if (string.Equals(input, source, comparison))
+            return true;
+        return source.StartsWith(input + Path.DirectorySeparatorChar, comparison) ||
+               source.StartsWith(input + Path.AltDirectorySeparatorChar, comparison);
+    }
+}
+
 public sealed record ToolIdentity(
     string Name,
     string Version,

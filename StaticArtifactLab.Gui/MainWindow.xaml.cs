@@ -88,7 +88,13 @@ public partial class MainWindow : Window, IDisposable
             return;
         await RunBusyAsync("Verifying selectors and available source bytes…", async token =>
         {
-            var result = await CaseVerifier.VerifyAsync(_document, token);
+            var choice = MessageBox.Show(this,
+                "Verify available source bytes using the local paths recorded in this case?\n\nChoose No for a structure-only check. Network paths are always blocked.",
+                "Source verification", MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
+            if (choice == MessageBoxResult.Cancel)
+                return;
+            var result = await CaseVerifier.VerifyAsync(_document,
+                new VerificationOptions { VerifySourceBytes = choice == MessageBoxResult.Yes }, token);
             StatusText.Text = result.IsValid
                 ? $"Evidence valid · {result.VerifiedArtifacts} verified · {result.UnverifiedArtifacts} unavailable."
                 : $"Evidence invalid · {result.Errors.Count} error(s).";

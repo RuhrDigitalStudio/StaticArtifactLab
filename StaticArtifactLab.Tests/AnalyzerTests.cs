@@ -50,6 +50,53 @@ public sealed class AnalyzerTests
     }
 
     [Fact]
+    public async Task NonFiniteExpansionLimit_IsRejected()
+    {
+        using var temp = TestData.Temp();
+        var path = temp.Write("sample.bin", [1, 2, 3]);
+        var options = new AnalysisOptions
+        {
+            Limits = AnalysisLimits.Default with { MaxExpansionRatio = double.PositiveInfinity },
+        };
+
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => ArtifactAnalyzer.ProveAsync(path, options));
+    }
+
+    [Fact]
+    public async Task UncInput_IsRejectedBeforeFilesystemAccess()
+    {
+        if (!OperatingSystem.IsWindows())
+            return;
+
+        var error = await Assert.ThrowsAsync<ArgumentException>(() =>
+            ArtifactAnalyzer.ProveAsync(@"\\example.invalid\share\sample.zip"));
+
+        Assert.Contains("network", error.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task RootSymbolicLink_IsNotFollowedWhenPlatformAllowsCreation()
+    {
+        using var temp = TestData.Temp();
+        var target = temp.Write("target.txt", Encoding.UTF8.GetBytes("linked evidence"));
+        var link = Path.Combine(temp.Path, "root-link.txt");
+        try
+        {
+            File.CreateSymbolicLink(link, target);
+        }
+        catch (Exception ex) when (ex is UnauthorizedAccessException or IOException or PlatformNotSupportedException)
+        {
+            return;
+        }
+
+        var result = await ArtifactAnalyzer.ProveAsync(link);
+
+        Assert.Empty(result.Artifacts);
+        Assert.Contains(result.Coverage, x => x.Reason == CoverageReason.SymbolicLink);
+        Assert.Equal(CaseStatus.Partial, result.Status);
+    }
+
+    [Fact]
     public async Task DirectoryTraversal_StopsAtArtifactBudget()
     {
         using var temp = TestData.Temp();

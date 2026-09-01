@@ -53,7 +53,7 @@ public sealed class CliTests
         Assert.Equal(0, await CliApplication.RunAsync(["prove", input, "--case", casePath], output, error));
         File.WriteAllText(input, "changed");
 
-        var exitCode = await CliApplication.RunAsync(["verify", casePath], output, error);
+        var exitCode = await CliApplication.RunAsync(["verify", casePath, "--with-sources"], output, error);
 
         Assert.Equal(3, exitCode);
         Assert.Contains("source-digest-mismatch", output.ToString(), StringComparison.Ordinal);

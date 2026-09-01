@@ -14,6 +14,9 @@ feature work:
 - input files are opened read-only;
 - input code is never executed and input .NET assemblies are never loaded;
 - analysis performs no network requests;
+- UNC paths are rejected, and loading a case never authorizes its source paths;
+- source-byte verification is an explicit action limited to the recorded local
+  input boundary;
 - archive entries are not written to disk;
 - filesystem reparse points and symbolic links are not followed;
 - root, child, total-byte, entry, depth, artifact, ratio, and finding limits are

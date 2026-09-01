@@ -32,6 +32,10 @@ public static class CaseJson
 
         if (!string.Equals(document.Schema, "static-artifact-case/v2", StringComparison.Ordinal))
             throw new InvalidDataException($"Unsupported case schema '{document.Schema}'.");
+        if (document.Tool is null || document.Limits is null || document.Artifacts is null || document.Findings is null || document.Coverage is null)
+            throw new InvalidDataException("The case document is missing required objects or collections.");
+        if (document.Artifacts.Any(x => x is null || x.Selector is null) || document.Findings.Any(x => x is null) || document.Coverage.Any(x => x is null))
+            throw new InvalidDataException("The case document contains a null record or selector.");
         return document;
     }
 

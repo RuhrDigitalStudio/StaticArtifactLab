@@ -13,8 +13,9 @@ limits, and skipped work.
 
 ## What it does
 
-- identifies PE, ELF, Mach-O, ZIP, 7z, RAR, gzip, PDF, PNG, OLE, scripts, and
-  text from bytes rather than trusting the file name;
+- identifies PE, ELF, Mach-O, ZIP, 7z, RAR, gzip, PDF, PNG, and OLE from magic
+  bytes, then classifies readable PowerShell, JSON, XML, and UTF-8 text using
+  content plus constrained filename hints rather than the extension alone;
 - opens ZIP, JAR, NuGet, APK, and OOXML packages recursively without extracting
   children to disk;
 - records SHA-256, length, entropy, media type, parent, depth, and an exact
@@ -46,7 +47,7 @@ Check that the selectors and all still-available source bytes agree with the
 case:
 
 ```powershell
-static-artifact.exe verify .\evidence\package.sal-case.json
+static-artifact.exe verify .\evidence\package.sal-case.json --with-sources
 ```
 
 Run the same limits again and compare artifact evidence:
@@ -71,8 +72,11 @@ selector records its ZIP entry index and name plus the parent SHA-256. The
 child record adds its own SHA-256 and length. Its 24-character artifact ID is
 derived from the canonical parent/selector/content tuple.
 
-This lets `verify` reopen the root, locate the same archive entry, and hash the
-recovered bytes. It can distinguish three states:
+By default, `verify` checks structure without reading any path named by an
+untrusted case. `--with-sources` explicitly allows local reads within the
+recorded input boundary. UNC paths remain blocked. In that mode it can reopen
+the root, locate the same archive entry, and hash the recovered bytes. It
+distinguishes three states:
 
 - valid and verified: source bytes are available and match;
 - valid but unavailable: the case is structurally sound, but source bytes are
@@ -86,29 +90,29 @@ The full contract is in [docs/case-format.md](docs/case-format.md).
 StaticArtifactLab refuses unbounded container work. Every limit used for a run
 is stored in the case.
 
-| Limit | Default |
-| --- | ---: |
-| Root file | 100 MiB |
-| Expanded child | 100 MiB |
-| Total expanded bytes | 512 MiB |
-| Accepted artifacts | 5,000 |
-| Filesystem nodes considered | 20,000 |
-| Entries considered per ZIP | 1,000 |
-| Container depth | 8 |
-| Expansion ratio | 200:1 |
-| Findings | 2,000 |
+| Limit | Default | Hard ceiling |
+| --- | ---: | ---: |
+| Root file | 100 MiB | 1 GiB |
+| Expanded child | 100 MiB | 1 GiB |
+| Total expanded bytes | 512 MiB | 4 GiB |
+| Accepted artifacts | 5,000 | 100,000 |
+| Filesystem nodes considered | 20,000 | 1,000,000 |
+| Entries considered per ZIP | 1,000 | 100,000 |
+| Container depth | 8 | 32 |
+| Expansion ratio | 200:1 | 10,000:1 |
+| Findings | 2,000 | 100,000 |
 
 CLI overrides are available through `--max-root-mib`, `--max-artifact-mib`,
 `--max-total-mib`, `--max-artifacts`, `--max-fs-nodes`, `--max-entries`, `--max-depth`, and
 `--max-ratio`. A reached limit changes the case status to `partial`; it does
-not silently shorten the result.
+not silently shorten the result. Overrides cannot exceed the hard ceilings.
 
 ## Commands and exit codes
 
 | Command | Result |
 | --- | --- |
 | `prove <input>` | Builds a new case from one file or a directory. |
-| `verify <case>` | Validates structure and hashes every available selector. |
+| `verify <case>` | Validates structure; `--with-sources` also hashes available local selectors. |
 | `replay <case>` | Re-runs the recorded input and compares evidence paths. |
 
 | Code | Meaning |
@@ -134,7 +138,8 @@ the evidence collector.
 ## Security and privacy
 
 Inputs are opened read-only and are never executed, loaded as assemblies, or
-sent over the network. Archive children stay in bounded memory. Filesystem
+sent over the network. UNC paths are rejected. A loaded case cannot cause source
+reads unless the user explicitly enables them. Archive children stay in bounded memory. Filesystem
 symbolic links and reparse points are not followed.
 
 Case files deliberately contain source paths, names, hashes, and observations.

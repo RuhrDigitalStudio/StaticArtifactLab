@@ -13,6 +13,8 @@ public sealed class ArtifactAnalyzer
         ArgumentException.ThrowIfNullOrWhiteSpace(inputPath);
         options ??= new AnalysisOptions();
         ValidateLimits(options.Limits);
+        if (PathSafety.IsNetworkPath(inputPath))
+            throw new ArgumentException("Network and UNC input paths are not supported.", nameof(inputPath));
 
         var fullPath = Path.GetFullPath(inputPath);
         if (!File.Exists(fullPath) && !Directory.Exists(fullPath))
@@ -24,6 +26,26 @@ public sealed class ArtifactAnalyzer
             Limits = options.Limits,
         };
         var state = new AnalysisState(document, cancellationToken);
+
+        FileAttributes rootAttributes;
+        try
+        {
+            rootAttributes = File.GetAttributes(fullPath);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            state.Coverage(null, Path.GetFileName(fullPath), "open-root", CoverageStatus.Rejected, CoverageReason.UnreadableInput, ex.Message);
+            document.Status = CaseStatus.Partial;
+            return document;
+        }
+
+        if ((rootAttributes & FileAttributes.ReparsePoint) != 0)
+        {
+            state.Coverage(null, Path.GetFileName(fullPath), "open-root", CoverageStatus.Rejected, CoverageReason.SymbolicLink,
+                "A root symbolic link or reparse point is not followed.");
+            document.Status = CaseStatus.Partial;
+            return document;
+        }
 
         if (File.Exists(fullPath))
         {
@@ -458,10 +480,8 @@ public sealed class ArtifactAnalyzer
 
     private static void ValidateLimits(AnalysisLimits limits)
     {
-        if (limits.MaxRootBytes < 1 || limits.MaxArtifactBytes < 1 || limits.MaxTotalExpandedBytes < 1 ||
-            limits.MaxArtifacts < 1 || limits.MaxFilesystemNodes < 1 || limits.MaxEntriesPerArchive < 1 || limits.MaxDepth < 0 ||
-            limits.MaxExpansionRatio <= 0 || limits.MaxFindings < 1)
-            throw new ArgumentOutOfRangeException(nameof(limits), "All analysis limits must be positive; depth may be zero.");
+        if (!AnalysisLimitPolicy.IsValid(limits))
+            throw new ArgumentOutOfRangeException(nameof(limits), "Analysis limits must be positive, finite, and below the documented hard ceilings.");
     }
 
     private sealed class AnalysisState(CaseDocument document, CancellationToken cancellationToken)

@@ -15,6 +15,8 @@ All notable changes are documented here. Versions follow Semantic Versioning.
   duplicates, entropy, and PNG trailing data;
 - explicit analyzed, skipped, and rejected coverage records;
 - structural and source-byte verification;
+- structure-only verification by default, with explicit bounded local source
+  access and UNC rejection;
 - deterministic worker replay with added, removed, and changed paths;
 - standalone HTML and SARIF 2.1 exports;
 - `prove`, `verify`, and `replay` CLI workflows with stable exit codes;

@@ -5,9 +5,10 @@ namespace StaticArtifactLab.Core;
 
 public sealed class CaseVerifier
 {
-    public static async Task<VerificationResult> VerifyAsync(CaseDocument document, CancellationToken cancellationToken = default)
+    public static async Task<VerificationResult> VerifyAsync(CaseDocument document, VerificationOptions? options = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(document);
+        options ??= new VerificationOptions();
         var errors = new List<VerificationIssue>();
         if (!string.Equals(document.Schema, "static-artifact-case/v2", StringComparison.Ordinal))
             errors.Add(new("unsupported-schema", $"Unsupported schema '{document.Schema}'."));
@@ -49,6 +50,30 @@ public sealed class CaseVerifier
             }
         }
 
+        foreach (var finding in document.Findings)
+        {
+            if (!byId.ContainsKey(finding.ArtifactId))
+                errors.Add(new("dangling-finding", "A finding references an artifact that is not present.", finding.ArtifactId));
+        }
+
+        foreach (var coverage in document.Coverage)
+        {
+            if (coverage.ArtifactId is not null && !byId.ContainsKey(coverage.ArtifactId))
+                errors.Add(new("dangling-coverage", "A coverage record references an artifact that is not present.", coverage.ArtifactId));
+        }
+
+        var expectedStatus = document.Coverage.Any(x => x.Status is CoverageStatus.Skipped or CoverageStatus.Rejected)
+            ? CaseStatus.Partial
+            : CaseStatus.Complete;
+        if (document.Status != expectedStatus)
+            errors.Add(new("case-status-mismatch", $"Case status is {document.Status}, but coverage requires {expectedStatus}."));
+
+        if (!AnalysisLimitPolicy.IsValid(document.Limits))
+            errors.Add(new("invalid-limits", "One or more recorded analysis limits are outside the accepted range."));
+
+        if (!options.VerifySourceBytes)
+            return new VerificationResult(errors.Count == 0, 0, document.Artifacts.Count, errors);
+
         var verified = 0;
         var unverified = 0;
         var bytesById = new Dictionary<string, byte[]>(StringComparer.Ordinal);
@@ -59,13 +84,53 @@ public sealed class CaseVerifier
             if (artifact.ParentId is null && artifact.Selector.Kind == "root")
             {
                 var path = artifact.Selector.SourcePath;
+                if (path is not null && PathSafety.IsNetworkPath(path))
+                {
+                    errors.Add(new("network-source-path", "Network and UNC source paths are not permitted.", artifact.Id));
+                    unverified++;
+                    continue;
+                }
+
+                bool withinInput;
+                try
+                {
+                    withinInput = path is null || PathSafety.IsWithinRecordedInput(document.InputPath, path);
+                }
+                catch (Exception ex) when (ex is ArgumentException or NotSupportedException or IOException)
+                {
+                    errors.Add(new("invalid-source-path", "The recorded input or source path is invalid.", artifact.Id));
+                    unverified++;
+                    continue;
+                }
+
+                if (!withinInput)
+                {
+                    errors.Add(new("source-outside-input", "The source path is outside the recorded input boundary.", artifact.Id));
+                    unverified++;
+                    continue;
+                }
+
                 if (path is not null && File.Exists(path))
                 {
-                    var info = new FileInfo(path);
-                    if (info.Length <= document.Limits.MaxRootBytes)
-                        bytes = await File.ReadAllBytesAsync(path, cancellationToken).ConfigureAwait(false);
-                    else
-                        errors.Add(new("source-over-limit", "The root source now exceeds the recorded read limit.", artifact.Id));
+                    try
+                    {
+                        if ((File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0)
+                        {
+                            errors.Add(new("source-reparse-point", "A source symbolic link or reparse point is not followed.", artifact.Id));
+                            unverified++;
+                            continue;
+                        }
+
+                        var info = new FileInfo(path);
+                        if (info.Length <= document.Limits.MaxRootBytes)
+                            bytes = await File.ReadAllBytesAsync(path, cancellationToken).ConfigureAwait(false);
+                        else
+                            errors.Add(new("source-over-limit", "The root source now exceeds the recorded read limit.", artifact.Id));
+                    }
+                    catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                    {
+                        errors.Add(new("source-read-failed", ex.Message, artifact.Id));
+                    }
                 }
             }
             else if (artifact.ParentId is not null && artifact.Selector.Kind == "zip-entry" && bytesById.TryGetValue(artifact.ParentId, out var parentBytes))
@@ -91,6 +156,7 @@ public sealed class CaseVerifier
             if (bytes.LongLength != artifact.Length || !string.Equals(digest, artifact.Sha256, StringComparison.Ordinal))
             {
                 errors.Add(new("source-digest-mismatch", "Available source bytes do not match the recorded length and SHA-256.", artifact.Id));
+                unverified++;
                 continue;
             }
 
@@ -136,6 +202,8 @@ public sealed class CaseReplayer
         ArgumentNullException.ThrowIfNull(original);
         if (string.IsNullOrWhiteSpace(original.InputPath))
             throw new InvalidDataException("The case does not record an input path for replay.");
+        if (PathSafety.IsNetworkPath(original.InputPath))
+            throw new InvalidDataException("Network and UNC input paths cannot be replayed.");
 
         var replayed = await ArtifactAnalyzer.ProveAsync(original.InputPath, new AnalysisOptions { Limits = original.Limits }, cancellationToken).ConfigureAwait(false);
         var oldArtifacts = original.Artifacts.ToDictionary(x => x.LogicalPath, StringComparer.Ordinal);

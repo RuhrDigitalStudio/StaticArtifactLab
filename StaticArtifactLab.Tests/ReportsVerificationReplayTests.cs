@@ -64,7 +64,7 @@ public sealed class ReportsVerificationReplayTests
         var path = temp.Write("bundle.zip", TestData.Zip(("readme.txt", Encoding.UTF8.GetBytes("verified child"))));
         var document = await ArtifactAnalyzer.ProveAsync(path);
 
-        var result = await CaseVerifier.VerifyAsync(document);
+        var result = await CaseVerifier.VerifyAsync(document, new VerificationOptions { VerifySourceBytes = true });
 
         Assert.True(result.IsValid);
         Assert.Equal(2, result.VerifiedArtifacts);
@@ -95,7 +95,7 @@ public sealed class ReportsVerificationReplayTests
         var document = await ArtifactAnalyzer.ProveAsync(path);
         File.WriteAllText(path, "changed");
 
-        var result = await CaseVerifier.VerifyAsync(document);
+        var result = await CaseVerifier.VerifyAsync(document, new VerificationOptions { VerifySourceBytes = true });
 
         Assert.False(result.IsValid);
         Assert.Contains(result.Errors, x => x.Code == "source-digest-mismatch");
@@ -115,7 +115,7 @@ public sealed class ReportsVerificationReplayTests
             Id = ArtifactIdentity.Create(child.ParentId, changedSelector, child.Length, child.Sha256),
         };
 
-        var result = await CaseVerifier.VerifyAsync(document);
+        var result = await CaseVerifier.VerifyAsync(document, new VerificationOptions { VerifySourceBytes = true });
 
         Assert.False(result.IsValid);
         Assert.Contains(result.Errors, x => x.Code == "selector-resolution-failed");
@@ -138,11 +138,95 @@ public sealed class ReportsVerificationReplayTests
     }
 
     [Fact]
+    public async Task Verify_DefaultModeDoesNotReadChangedSourceBytes()
+    {
+        using var temp = TestData.Temp();
+        var path = temp.Write("sample.txt", Encoding.UTF8.GetBytes("original"));
+        var document = await ArtifactAnalyzer.ProveAsync(path);
+        File.WriteAllText(path, "changed");
+
+        var result = await CaseVerifier.VerifyAsync(document);
+
+        Assert.True(result.IsValid);
+        Assert.Equal(0, result.VerifiedArtifacts);
+        Assert.Equal(1, result.UnverifiedArtifacts);
+    }
+
+    [Fact]
+    public async Task Verify_WithSourcesRejectsRecordedUncPath()
+    {
+        using var temp = TestData.Temp();
+        var path = temp.Write("sample.txt", Encoding.UTF8.GetBytes("original"));
+        var document = await ArtifactAnalyzer.ProveAsync(path);
+        var root = document.Artifacts[0];
+        document.Artifacts[0] = root with
+        {
+            Selector = root.Selector with { SourcePath = @"\\example.invalid\share\sample.txt" },
+        };
+
+        var result = await CaseVerifier.VerifyAsync(document, new VerificationOptions { VerifySourceBytes = true });
+
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, x => x.Code == "network-source-path");
+    }
+
+    [Fact]
+    public async Task Verify_WithSourcesReportsInvalidRecordedPathWithoutThrowing()
+    {
+        using var temp = TestData.Temp();
+        var path = temp.Write("sample.txt", Encoding.UTF8.GetBytes("original"));
+        var document = await ArtifactAnalyzer.ProveAsync(path);
+        document.InputPath = "\0";
+
+        var result = await CaseVerifier.VerifyAsync(document, new VerificationOptions { VerifySourceBytes = true });
+
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, x => x.Code == "invalid-source-path");
+    }
+
+    [Fact]
     public void Deserialize_RejectsUnknownSchema()
     {
         var error = Assert.Throws<InvalidDataException>(() =>
             CaseJson.Deserialize("{\"schema\":\"future/v9\"}"));
 
         Assert.Contains("schema", error.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Deserialize_RejectsExplicitNullCollections()
+    {
+        var error = Assert.Throws<InvalidDataException>(() =>
+            CaseJson.Deserialize("{\"schema\":\"static-artifact-case/v2\",\"artifacts\":null}"));
+
+        Assert.Contains("required", error.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Verify_RejectsDanglingFindingAndFalseCompleteStatus()
+    {
+        using var temp = TestData.Temp();
+        var path = temp.Write("sample.txt", Encoding.UTF8.GetBytes("evidence"));
+        var document = await ArtifactAnalyzer.ProveAsync(path);
+        document.Findings.Add(new FindingRecord
+        {
+            RuleId = "TEST001",
+            ArtifactId = "missing",
+            Message = "Synthetic dangling record.",
+        });
+        document.Coverage.Add(new CoverageRecord
+        {
+            LogicalPath = "missing.bin",
+            Operation = "test",
+            Status = CoverageStatus.Skipped,
+            Reason = CoverageReason.UnreadableInput,
+            Detail = "Synthetic partial coverage.",
+        });
+
+        var result = await CaseVerifier.VerifyAsync(document);
+
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, x => x.Code == "dangling-finding");
+        Assert.Contains(result.Errors, x => x.Code == "case-status-mismatch");
     }
 }
